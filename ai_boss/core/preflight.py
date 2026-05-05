@@ -1,7 +1,7 @@
 from pathlib import Path
-from shutil import which
 
 from ai_boss.config.loader import AIBossConfig
+from ai_boss.core.cli_resolver import resolve_cli_executable
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
@@ -13,11 +13,12 @@ def build_preflight(config: AIBossConfig, project_path: Path | None = None) -> d
     checks.append({"name": "vault_exists", "ok": config.system.vault_path.expanduser().exists(), "detail": str(config.system.vault_path)})
 
     for worker_name, settings in config.workers.items():
+        cli_path = resolve_cli_executable(settings.command[0])
         checks.append(
             {
                 "name": f"cli_{worker_name}",
-                "ok": which(settings.command[0]) is not None,
-                "detail": " ".join(settings.command),
+                "ok": cli_path is not None,
+                "detail": f"{' '.join(settings.command)} -> {cli_path}" if cli_path else " ".join(settings.command),
             }
         )
 
@@ -65,4 +66,3 @@ def _resolve_project_for_preflight(config: AIBossConfig, project_path: Path | No
     if config.system.default_project_path is not None:
         return config.system.default_project_path.expanduser().resolve()
     return None
-

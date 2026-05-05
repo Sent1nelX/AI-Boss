@@ -35,7 +35,7 @@ def test_vault_init_creates_projects_yaml(tmp_path: Path) -> None:
 def test_preflight_reports_missing_project_without_crashing(tmp_path: Path, monkeypatch) -> None:
     config = load_default_config()
     config.system.vault_path = tmp_path / "vault"
-    monkeypatch.setattr("ai_boss.core.preflight.which", lambda command: None)
+    monkeypatch.setattr("ai_boss.core.preflight.resolve_cli_executable", lambda command: None)
     monkeypatch.setattr("ai_boss.core.preflight.GitGuard.is_git_repo", lambda self: False)
 
     result = build_preflight(config)

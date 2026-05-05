@@ -617,6 +617,7 @@ INDEX_HTML = """<!doctype html>
         const meta = node('div', 'meta');
         meta.innerHTML = `${statusPill(worker.cli_found, worker.cli_found ? 'CLI найден' : 'CLI нет')} <span>${worker.status}</span>`;
         card.appendChild(meta);
+        card.appendChild(node('div', 'meta mono', worker.cli_path || worker.command.join(' ')));
         if (name === 'codex') card.appendChild(node('div', 'meta', `subagents: ${worker.allow_subagents ? worker.subagent_policy : 'off'}`));
         $('workersBox').appendChild(card);
       });

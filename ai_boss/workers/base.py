@@ -3,6 +3,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from ai_boss.core.cli_resolver import resolved_command
 from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.worker import WorkerResult
@@ -33,8 +34,9 @@ class BaseWorker:
         stderr = ""
         exit_code: int | None = None
         try:
+            command = resolved_command(self.command)
             completed = subprocess.run(
-                [*self.command, prompt],
+                [*command, prompt],
                 cwd=cwd,
                 text=True,
                 capture_output=True,
@@ -85,4 +87,3 @@ def extract_available_after(text: str) -> str | None:
     if match:
         return match.group(1).strip()
     return None
-

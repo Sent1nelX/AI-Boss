@@ -40,6 +40,7 @@ def test_worker_run_success_uses_mocked_subprocess_and_updates_state(
         assert check is False
         return SimpleNamespace(stdout="answer", stderr="", returncode=0)
 
+    monkeypatch.setattr("ai_boss.workers.base.resolved_command", lambda command: command)
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     worker = BaseWorker(["mock-ai", "--prompt"], vault, timeout=7)

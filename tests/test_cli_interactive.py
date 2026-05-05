@@ -15,7 +15,7 @@ def test_cli_without_command_starts_interactive_mode_and_handles_service_command
 
     monkeypatch.setattr(cli_app, "load_config", lambda vault_path=None: config)
     monkeypatch.setattr("ai_boss.cli.app.GitGuard.is_git_repo", lambda self: False)
-    monkeypatch.setattr("ai_boss.cli.app.shutil.which", lambda command: None)
+    monkeypatch.setattr("ai_boss.cli.app.resolve_cli_executable", lambda command: None)
 
     result = CliRunner().invoke(
         cli_app.app,

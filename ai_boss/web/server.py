@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import threading
 import webbrowser
 from http import HTTPStatus
@@ -11,6 +10,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from ai_boss.config.loader import AIBossConfig, load_config
+from ai_boss.core.cli_resolver import resolve_cli_executable
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.core.orchestrator import Orchestrator
@@ -158,9 +158,11 @@ def api_status(config: AIBossConfig | None = None) -> dict[str, Any]:
     states = WorkerStateStore(vault.path).load()
     for name, settings in config.workers.items():
         state = states.get(name)
+        cli_path = resolve_cli_executable(settings.command[0])
         workers[name] = {
             "command": settings.command,
-            "cli_found": shutil.which(settings.command[0]) is not None,
+            "cli_found": cli_path is not None,
+            "cli_path": cli_path,
             "status": state.status.value if state else "unknown",
             "enabled": settings.enabled,
             "allow_subagents": settings.allow_subagents,

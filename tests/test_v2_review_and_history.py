@@ -171,7 +171,7 @@ def test_interactive_history_commands_print_task_history(
 
     monkeypatch.setattr(cli_app, "load_config", lambda vault_path=None: config)
     monkeypatch.setattr("ai_boss.cli.app.GitGuard.is_git_repo", lambda self: False)
-    monkeypatch.setattr("ai_boss.cli.app.shutil.which", lambda command: None)
+    monkeypatch.setattr("ai_boss.cli.app.resolve_cli_executable", lambda command: None)
     monkeypatch.setattr(cli_app, "_dispatch_auto", lambda text, project_path: pytest.fail(f"Unknown command: {text}"))
 
     result = CliRunner().invoke(cli_app.app, [], input="/history\n/tasks\n/exit\n")

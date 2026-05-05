@@ -1,4 +1,3 @@
-import shutil
 from pathlib import Path
 
 import typer
@@ -7,6 +6,7 @@ from rich.markdown import Markdown
 from rich.table import Table
 
 from ai_boss.config.loader import load_config
+from ai_boss.core.cli_resolver import resolve_cli_executable
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.core.orchestrator import Orchestrator
@@ -296,8 +296,8 @@ def _print_status(config) -> None:
         table.add_row("Git-статус проекта", git_status)
 
     for name, settings in config.workers.items():
-        found = shutil.which(settings.command[0]) is not None
-        table.add_row(f"CLI {name}", "найден" if found else "не найден")
+        cli_path = resolve_cli_executable(settings.command[0])
+        table.add_row(f"CLI {name}", f"найден: {cli_path}" if cli_path else "не найден")
         if name == "codex":
             subagents = "включены" if settings.allow_subagents else "отключены"
             table.add_row("Codex subagents", f"{subagents}, политика: {settings.subagent_policy}")
