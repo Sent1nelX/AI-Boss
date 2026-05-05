@@ -141,6 +141,10 @@ def test_tasks_and_single_task_endpoints_return_vault_history(web_client: JsonCl
     vault.create()
     task_path = vault.create_task("20260505-120000-web", "Показать web историю", tmp_path)
     vault.update_task_frontmatter(task_path, status="planned", planner="gemini")
+    vault.write_plan("20260505-120000-web", "План задачи", "gemini")
+    vault.write_execution("20260505-120000-web", "Лог выполнения", "codex")
+    vault.write_review("20260505-120000-web", "Ревью", "claude")
+    vault.write_final_report("20260505-120000-web", "Итог")
 
     status_code, body = web_client.get("/api/tasks")
 
@@ -153,6 +157,8 @@ def test_tasks_and_single_task_endpoints_return_vault_history(web_client: JsonCl
     assert status_code == 200
     assert body["task"]["id"] == "20260505-120000-web"
     assert "Показать web историю" in body["task"]["content"]
+    assert body["artifacts"]["plan"][0]["worker"] == "gemini"
+    assert "Лог выполнения" in body["artifacts"]["execution"][0]["markdown"]
 
 
 def test_projects_and_preflight_endpoints_are_available(web_client: JsonClient, tmp_path: Path) -> None:
@@ -193,6 +199,72 @@ def test_web_job_queue_runs_action_and_exposes_live_state(web_client: JsonClient
 
     assert status_code == 200
     assert body["jobs"][0]["id"] == job_id
+
+
+def test_web_job_queue_retry_endpoint_creates_new_job(web_client: JsonClient) -> None:
+    status_code, body = web_client.post("/api/jobs", {"mode": "ask", "text": "ping"})
+    assert status_code == 200
+    job_id = body["job"]["id"]
+
+    for _ in range(40):
+        status_code, body = web_client.get(f"/api/job/{job_id}")
+        assert status_code == 200
+        if body["job"]["status"] in {"succeeded", "failed"}:
+            break
+        time.sleep(0.01)
+
+    status_code, body = web_client.post(f"/api/job/{job_id}/retry", {})
+
+    assert status_code == 200
+    assert body["job"]["retry_of"] == job_id
+    assert body["job"]["id"] != job_id
+
+
+def test_web_settings_endpoints_update_whitelisted_config(web_client: JsonClient, tmp_path: Path) -> None:
+    status_code, body = web_client.get("/api/settings")
+
+    assert status_code == 200
+    assert body["config"]["safety"]["max_fix_loops"] == 2
+
+    status_code, body = web_client.post(
+        "/api/settings",
+        {
+            "system": {"default_project_path": str(tmp_path / "project"), "vault_path": "/tmp/not-allowed"},
+            "safety": {"block_if_dirty_tree": False, "max_fix_loops": 5, "secret": "nope"},
+            "workers": {"codex": {"enabled": False, "command": ["codex", "exec", "--fast"], "token": "nope"}},
+        },
+    )
+
+    assert status_code == 200
+    assert body["config"]["system"]["default_project_path"] == str(tmp_path / "project")
+    assert body["config"]["safety"]["block_if_dirty_tree"] is False
+    assert body["config"]["workers"]["codex"]["enabled"] is False
+    assert "secret" not in body["raw"]["safety"]
+    assert "token" not in body["raw"]["workers"]["codex"]
+
+
+def test_job_queue_persists_and_cancels_queued_jobs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config = load_default_config()
+    config.system.vault_path = tmp_path / "vault"
+    config.system.vault_path.mkdir()
+    jobs = importlib.import_module("ai_boss.web.jobs")
+    monkeypatch.setattr(jobs, "load_config", lambda vault_path=None: config, raising=False)
+
+    queue = jobs.JobQueue()
+    monkeypatch.setattr(queue, "_ensure_worker_locked", lambda: None)
+    job = queue.submit("ask", "persistent ping")
+
+    restored = jobs.JobQueue()
+    monkeypatch.setattr(restored, "_ensure_worker_locked", lambda: None)
+    assert restored.list_jobs()[0]["id"] == job.id
+
+    cancelled = restored.cancel(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+
+    retry = restored.retry(job.id)
+    assert retry is not None
+    assert retry.retry_of == job.id
 
 
 @pytest.mark.parametrize(

@@ -378,6 +378,11 @@ INDEX_HTML = """<!doctype html>
     .meta-cell { border: 1px solid var(--line-2); border-radius: var(--r-1); padding: 8px; background: var(--surface); }
     .meta-cell .k { font-family: var(--f-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
     .meta-cell .v { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+    .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .switch-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
+    .switch-row input { width: auto; }
+    .artifact-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .artifact-tabs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
     .markdown {
       max-height: 360px;
       overflow: auto;
@@ -398,6 +403,7 @@ INDEX_HTML = """<!doctype html>
     @media (max-width: 760px) {
       .topbar { grid-template-columns: 1fr; }
       .worker-grid, .meta-grid, .field-row { grid-template-columns: 1fr; }
+      .settings-grid { grid-template-columns: 1fr; }
       .mode-tabs { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
@@ -420,6 +426,7 @@ INDEX_HTML = """<!doctype html>
         <button data-scroll="preflight"><span class="ico">✓</span>Preflight<span class="ct" id="preflightTiny">?</span></button>
         <button data-scroll="projects"><span class="ico">P</span>Проекты<span class="ct" id="projectCount">0</span></button>
         <button data-scroll="workers"><span class="ico">W</span>Workers<span class="ct">3</span></button>
+        <button data-scroll="settings"><span class="ico">S</span>Settings<span class="ct">yaml</span></button>
       </nav>
       <div class="side-foot">
         <div class="row"><span>vault</span><b id="vaultPath">...</b></div>
@@ -484,11 +491,23 @@ INDEX_HTML = """<!doctype html>
               </div>
             </div>
           </section>
+          <section class="panel preflight" id="onboarding">
+            <div class="p-head">
+              <h3>Ready check</h3>
+              <span class="h-meta">что мешает запуску</span>
+              <div class="right"><span class="pill" id="readyState">checking</span></div>
+            </div>
+            <div class="p-body"><div class="check-list" id="onboardingBox"></div></div>
+          </section>
           <section class="panel active" id="activeTask">
             <div class="p-head">
               <h3>Active task</h3>
               <span class="h-meta" id="activeTaskMeta">нет активного запуска</span>
-              <div class="right"><button class="btn sm danger" id="clearLog" type="button">Очистить</button></div>
+              <div class="right">
+                <button class="btn sm danger" id="cancelJob" type="button">Cancel</button>
+                <button class="btn sm" id="retryJob" type="button">Retry</button>
+                <button class="btn sm danger" id="clearLog" type="button">Очистить</button>
+              </div>
             </div>
             <div class="live-log" id="liveLog"></div>
           </section>
@@ -505,6 +524,7 @@ INDEX_HTML = """<!doctype html>
             <div class="p-body">
               <div id="taskMeta" class="meta-grid"></div>
               <div style="height:8px"></div>
+              <div id="artifactTabs" class="artifact-tabs"></div>
               <div id="taskMarkdown" class="markdown">Задача пока не выбрана.</div>
             </div>
           </section>
@@ -535,6 +555,14 @@ INDEX_HTML = """<!doctype html>
               <button class="btn" id="addProject" type="button">+ Добавить профиль</button>
             </div>
           </section>
+          <section class="panel command" id="settings">
+            <div class="p-head">
+              <h3>Settings</h3>
+              <span class="h-meta">config.yaml</span>
+              <div class="right"><button class="btn sm primary" id="saveSettings" type="button">Save</button></div>
+            </div>
+            <div class="p-body"><div id="settingsBox"></div></div>
+          </section>
           <section class="panel history" id="history">
             <div class="p-head">
               <h3>История</h3>
@@ -549,7 +577,7 @@ INDEX_HTML = """<!doctype html>
   </div>
   <script>
     const $ = (id) => document.getElementById(id);
-    const state = { mode: 'do', status: null, tasks: [], projects: [], jobs: [], activeJobId: null, pollTimer: null };
+    const state = { mode: 'do', status: null, settings: null, tasks: [], projects: [], jobs: [], activeJobId: null, pollTimer: null };
     const lifecycle = ['created', 'planned', 'awaiting_approval', 'running', 'reviewed', 'fixing', 'finished'];
 
     function node(tag, cls, text) {
@@ -557,6 +585,9 @@ INDEX_HTML = """<!doctype html>
       if (cls) el.className = cls;
       if (text !== undefined) el.textContent = text;
       return el;
+    }
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     }
     function statusClass(ok) { return ok ? 'ok' : 'bad'; }
     function statusPill(ok, text) { return `<span class="pill ${statusClass(ok)}"><span class="led"></span>${text}</span>`; }
@@ -621,6 +652,36 @@ INDEX_HTML = """<!doctype html>
         if (name === 'codex') card.appendChild(node('div', 'meta', `subagents: ${worker.allow_subagents ? worker.subagent_policy : 'off'}`));
         $('workersBox').appendChild(card);
       });
+      renderOnboarding();
+    }
+    function renderOnboarding(preflight = null) {
+      if (!state.status) return;
+      const rows = [];
+      if (!state.status.vault.exists) rows.push(['bad', 'Vault', 'Запустите ai-boss init или выберите существующий Vault.']);
+      if (!state.status.project.current_is_git_repo) rows.push(['bad', 'Git project', 'Текущая папка не является git-репозиторием.']);
+      if (state.status.project.current_git_status) rows.push(['warn', 'Dirty tree', 'Есть незакоммиченные изменения.']);
+      Object.entries(state.status.workers).forEach(([name, worker]) => {
+        if (!worker.cli_found) rows.push(['bad', `${name} CLI`, worker.command.join(' ')]);
+        if (!worker.enabled) rows.push(['warn', `${name} disabled`, 'Worker отключён в config.yaml.']);
+      });
+      if (preflight && !preflight.ok) rows.push(['warn', 'Preflight', 'Есть предупреждения перед run/review.']);
+      $('readyState').className = `pill ${rows.some(row => row[0] === 'bad') ? 'bad' : rows.length ? 'warn' : 'ok'}`;
+      $('readyState').innerHTML = `<span class="led"></span>${rows.length ? 'attention' : 'ready'}`;
+      $('onboardingBox').innerHTML = '';
+      if (!rows.length) {
+        $('onboardingBox').appendChild(node('div', 'empty', 'Рабочая среда выглядит готовой.'));
+        return;
+      }
+      rows.forEach(([kind, title, detail]) => {
+        const row = node('div', `check ${kind === 'bad' ? 'bad' : ''}`);
+        row.appendChild(node('span', 'glyph', kind === 'bad' ? '!' : '?'));
+        const mid = node('span');
+        mid.appendChild(node('div', 'name', title));
+        mid.appendChild(node('div', 'detail', detail));
+        row.appendChild(mid);
+        row.appendChild(node('span', `pill ${kind}`, kind));
+        $('onboardingBox').appendChild(row);
+      });
     }
     function renderPreflight(data) {
       const ok = Boolean(data.ok);
@@ -639,6 +700,7 @@ INDEX_HTML = """<!doctype html>
         row.appendChild(p);
         $('preflightBox').appendChild(row);
       });
+      renderOnboarding(data);
     }
     function renderProjects(data) {
       state.projects = data.projects || [];
@@ -694,18 +756,71 @@ INDEX_HTML = """<!doctype html>
         $('jobsBox').appendChild(btn);
       });
     }
-    function renderTaskDetail(taskId, content, path) {
+    function renderTaskDetail(data) {
+      const task = data.task || {};
+      const taskId = task.id || '';
       $('taskDetailsMeta').textContent = taskId;
       $('taskMeta').innerHTML = '';
-      [['id', taskId], ['path', path || ''], ['source', 'Obsidian Vault'], ['format', 'markdown']].forEach(([k, v]) => {
+      [['id', taskId], ['path', task.path || ''], ['source', 'Obsidian Vault'], ['artifacts', Object.values(data.artifacts || {}).flat().length]].forEach(([k, v]) => {
         const cell = node('div', 'meta-cell');
         cell.appendChild(node('div', 'k', k));
         cell.appendChild(node('div', 'v mono', v));
         $('taskMeta').appendChild(cell);
       });
-      $('taskMarkdown').textContent = content || '';
+      const artifacts = data.artifacts || {};
+      $('artifactTabs').innerHTML = '';
+      const tabs = [['task', [{markdown: task.markdown || task.content || ''}]], ...Object.entries(artifacts)];
+      tabs.forEach(([name, items]) => {
+        (items || []).forEach((item, index) => {
+          const btn = node('button', `btn sm ${name === 'task' && index === 0 ? 'on' : ''}`, `${name}${items.length > 1 ? ` ${index + 1}` : ''}`);
+          btn.type = 'button';
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#artifactTabs button').forEach(button => button.classList.remove('on'));
+            btn.classList.add('on');
+            $('taskMarkdown').textContent = item.markdown || '';
+          });
+          $('artifactTabs').appendChild(btn);
+        });
+      });
+      $('taskMarkdown').textContent = task.markdown || task.content || '';
+    }
+    function renderSettings(data) {
+      state.settings = data.config || data.raw || {};
+      const cfg = state.settings;
+      const safety = cfg.safety || {};
+      const workers = cfg.workers || {};
+      $('settingsBox').innerHTML = `
+        <div class="settings-grid">
+          <label class="field"><span class="lbl">default project</span><input class="input mono" id="setDefaultProject" value="${esc(cfg.system?.default_project_path || '')}"></label>
+          <label class="field"><span class="lbl">max fix loops</span><input class="input mono" id="setMaxFixLoops" type="number" min="0" max="10" value="${safety.max_fix_loops ?? 2}"></label>
+        </div>
+        <div style="height:8px"></div>
+        <div class="settings-grid">
+          ${['require_git_repo','block_if_dirty_tree','create_branch_per_task','allow_parallel_writes'].map(key => `
+            <label class="switch-row"><input id="set_${key}" type="checkbox" ${safety[key] ? 'checked' : ''}> ${key}</label>
+          `).join('')}
+        </div>
+        <div style="height:10px"></div>
+        <div class="check-list">
+          ${Object.entries(workers).map(([name, worker]) => `
+            <div class="check">
+              <span class="glyph">${name[0].toUpperCase()}</span>
+              <span>
+                <div class="name">${esc(name)}</div>
+                <input class="input mono" id="cmd_${esc(name)}" value="${esc((worker.command || []).join(' '))}">
+                <label class="switch-row"><input id="en_${name}" type="checkbox" ${worker.enabled !== false ? 'checked' : ''}> enabled</label>
+                <label class="switch-row"><input id="sub_${name}" type="checkbox" ${worker.allow_subagents !== false ? 'checked' : ''}> subagents</label>
+              </span>
+              <select class="select" id="policy_${name}">
+                ${['auto','never','manual'].map(value => `<option value="${value}" ${worker.subagent_policy === value ? 'selected' : ''}>${value}</option>`).join('')}
+              </select>
+            </div>
+          `).join('')}
+        </div>
+      `;
     }
     async function loadStatus() { renderStatus(await getJson('/api/status')); }
+    async function loadSettings() { renderSettings(await getJson('/api/settings')); }
     async function loadProjects() { renderProjects(await getJson('/api/projects')); }
     async function loadTasks() { renderTasks(await getJson('/api/tasks?limit=30')); }
     async function loadJobs() { renderJobs(await getJson('/api/jobs')); }
@@ -727,7 +842,7 @@ INDEX_HTML = """<!doctype html>
         $('activeTaskCount').textContent = '0';
         return;
       }
-      const active = ['queued', 'running'].includes(job.status);
+      const active = ['queued', 'running', 'cancelling'].includes(job.status);
       $('activeTaskCount').textContent = active ? '1' : '0';
       $('sendBtn').disabled = active;
       if (active) {
@@ -739,7 +854,7 @@ INDEX_HTML = """<!doctype html>
     async function openTask(id) {
       const data = await getJson(`/api/task/${encodeURIComponent(id)}`);
       if (!data.ok) { addLog('err', data.error || 'Задача не найдена', 'err'); return; }
-      renderTaskDetail(id, data.markdown || data.task?.content, data.path || data.task?.path);
+      renderTaskDetail(data);
     }
     async function send(mode) {
       const body = payload();
@@ -792,6 +907,19 @@ INDEX_HTML = """<!doctype html>
     $('refreshTasks').addEventListener('click', loadTasks);
     $('refreshJobs').addEventListener('click', loadJobs);
     $('clearLog').addEventListener('click', () => $('liveLog').innerHTML = '');
+    $('cancelJob').addEventListener('click', async () => {
+      if (!state.activeJobId) { addLog('err', 'Нет активного запуска для отмены.', 'err'); return; }
+      const data = await postJson(`/api/job/${encodeURIComponent(state.activeJobId)}/cancel`, {});
+      if (!data.ok) addLog('err', data.error || 'Не удалось отменить запуск', 'err');
+      await pollJob(state.activeJobId);
+    });
+    $('retryJob').addEventListener('click', async () => {
+      if (!state.activeJobId) { addLog('err', 'Нет запуска для повтора.', 'err'); return; }
+      const data = await postJson(`/api/job/${encodeURIComponent(state.activeJobId)}/retry`, {});
+      if (!data.ok) { addLog('err', data.error || 'Не удалось повторить запуск', 'err'); return; }
+      state.activeJobId = data.job.id;
+      await pollJob(data.job.id);
+    });
     $('addProject').addEventListener('click', async () => {
       const name = $('projectName').value.trim();
       const path = $('projectAddPath').value.trim();
@@ -800,8 +928,34 @@ INDEX_HTML = """<!doctype html>
       if (!data.ok) addLog('err', data.error || 'Не удалось добавить проект', 'err');
       await loadProjects();
     });
+    $('saveSettings').addEventListener('click', async () => {
+      const workers = {};
+      Object.keys(state.settings?.workers || {}).forEach(name => {
+        workers[name] = {
+          command: ($(`cmd_${name}`)?.value || '').split(' ').filter(Boolean),
+          enabled: Boolean($(`en_${name}`)?.checked),
+          allow_subagents: Boolean($(`sub_${name}`)?.checked),
+          subagent_policy: $(`policy_${name}`)?.value || 'auto'
+        };
+      });
+      const payload = {
+        system: { default_project_path: $('setDefaultProject')?.value || null },
+        safety: {
+          require_git_repo: Boolean($('set_require_git_repo')?.checked),
+          block_if_dirty_tree: Boolean($('set_block_if_dirty_tree')?.checked),
+          create_branch_per_task: Boolean($('set_create_branch_per_task')?.checked),
+          allow_parallel_writes: Boolean($('set_allow_parallel_writes')?.checked),
+          max_fix_loops: Number($('setMaxFixLoops')?.value || 0)
+        },
+        workers
+      };
+      const data = await postJson('/api/settings', payload);
+      if (!data.ok) { addLog('err', data.error || 'Не удалось сохранить настройки', 'err'); return; }
+      addLog('sys', 'Настройки сохранены.', 'ok');
+      await Promise.all([loadSettings(), loadStatus(), runPreflight()]);
+    });
     async function refreshAll() {
-      await Promise.all([loadStatus(), loadProjects(), loadTasks(), loadJobs()]);
+      await Promise.all([loadStatus(), loadSettings(), loadProjects(), loadTasks(), loadJobs()]);
       await runPreflight();
     }
     addLog('sys', 'AI-Boss dashboard готов. Выберите проект, проверьте preflight и запустите задачу.');

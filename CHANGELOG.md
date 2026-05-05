@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Добавлена persistent web-очередь в `99_System/web-jobs.json`.
+- Добавлены cancel/retry для web-запусков и live logs из worker stdout/stderr.
+- Добавлены Settings UI и settings API для безопасного изменения whitelist-полей `config.yaml`.
+- Детализация задач в web UI теперь показывает task markdown и связанные Vault-артефакты: plan, execution, review, final report.
+- Security hardening для local-only режима и безопасной работы с git-проектами.
+- Packaging и release polish для более предсказуемой установки.
+
 ## 0.2.0
 
 - Добавлен улучшенный local-only web dashboard.

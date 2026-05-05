@@ -1,9 +1,12 @@
 import re
 import subprocess
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 from ai_boss.core.cli_resolver import resolved_command
+from ai_boss.core.runtime import cancel_requested, emit_runtime_log, runtime_hooks_enabled
 from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.worker import WorkerResult
@@ -35,17 +38,20 @@ class BaseWorker:
         exit_code: int | None = None
         try:
             command = resolved_command(self.command)
-            completed = subprocess.run(
-                [*command, prompt],
-                cwd=cwd,
-                text=True,
-                capture_output=True,
-                timeout=self.timeout,
-                check=False,
-            )
-            stdout = completed.stdout
-            stderr = completed.stderr
-            exit_code = completed.returncode
+            if runtime_hooks_enabled():
+                stdout, stderr, exit_code = self._run_streaming([*command, prompt], cwd)
+            else:
+                completed = subprocess.run(
+                    [*command, prompt],
+                    cwd=cwd,
+                    text=True,
+                    capture_output=True,
+                    timeout=self.timeout,
+                    check=False,
+                )
+                stdout = completed.stdout
+                stderr = completed.stderr
+                exit_code = completed.returncode
         except FileNotFoundError as exc:
             stderr = f"Команда не найдена: {self.command[0]}"
             exit_code = None
@@ -72,6 +78,53 @@ class BaseWorker:
         if not result.success:
             self.vault.write_error(f"Ошибка worker {self.name}", combined.strip() or "Нет вывода", self.name)
         return result
+
+    def _run_streaming(self, args: list[str], cwd: Path | None) -> tuple[str, str, int | None]:
+        process = subprocess.Popen(
+            args,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=1,
+        )
+        stdout_parts: list[str] = []
+        stderr_parts: list[str] = []
+
+        def read_stream(stream, target: list[str], source: str) -> None:
+            if stream is None:
+                return
+            for line in iter(stream.readline, ""):
+                target.append(line)
+                emit_runtime_log(source, line.rstrip())
+            stream.close()
+
+        stdout_thread = threading.Thread(target=read_stream, args=(process.stdout, stdout_parts, self.name), daemon=True)
+        stderr_thread = threading.Thread(target=read_stream, args=(process.stderr, stderr_parts, f"{self.name}:err"), daemon=True)
+        stdout_thread.start()
+        stderr_thread.start()
+        deadline = time.monotonic() + self.timeout
+
+        while process.poll() is None:
+            if cancel_requested():
+                emit_runtime_log("sys", f"Отмена: останавливаю {self.name}.")
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+                stderr_parts.append("Выполнение отменено пользователем.\n")
+                break
+            if time.monotonic() > deadline:
+                process.kill()
+                process.wait(timeout=5)
+                raise subprocess.TimeoutExpired(cmd=args, timeout=self.timeout, output="".join(stdout_parts))
+            time.sleep(0.1)
+
+        stdout_thread.join(timeout=1)
+        stderr_thread.join(timeout=1)
+        return "".join(stdout_parts), "".join(stderr_parts), process.returncode
 
 
 def detect_limit(text: str) -> bool:

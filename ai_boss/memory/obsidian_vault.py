@@ -140,6 +140,24 @@ class ObsidianVault:
         matches = sorted((self.path / "01_Tasks").glob(f"{task_id}*.md"))
         return matches[0] if matches else None
 
+    def task_detail(self, task_id: str) -> dict[str, object] | None:
+        task_path = self.find_task(task_id)
+        if not task_path:
+            return None
+        markdown = task_path.read_text(encoding="utf-8")
+        frontmatter = self._read_frontmatter(task_path)
+        resolved_id = str(frontmatter.get("id") or task_path.stem)
+        return {
+            "task": {
+                "id": resolved_id,
+                "path": str(task_path),
+                "markdown": markdown,
+                "content": markdown,
+                "frontmatter": frontmatter,
+            },
+            "artifacts": self._task_artifacts(resolved_id),
+        }
+
     def write_plan(self, task_id: str, content: str, worker: str) -> Path:
         return self._write_artifact("02_Plans", task_id, "plan", content, worker)
 
@@ -165,6 +183,40 @@ class ObsidianVault:
         frontmatter = {"task_id": task_id, "type": kind, "worker": worker, "created_at": datetime.now().isoformat()}
         self._write(path, f"{self._frontmatter(frontmatter)}\n{content.rstrip()}\n")
         return path
+
+    def _task_artifacts(self, task_id: str) -> dict[str, list[dict[str, object]]]:
+        groups = {
+            "plan": self._artifact_records("02_Plans", f"{task_id}-*.md"),
+            "execution": self._artifact_records("03_Execution", f"{task_id}-execution*.md"),
+            "review": self._artifact_records("04_Reviews", f"{task_id}-review*.md"),
+            "final": self._artifact_records("05_Final-Reports", f"{task_id}-final-report.md"),
+            "error": self._artifact_records("08_Errors", f"{task_id}-*.md", task_id=task_id),
+        }
+        return groups
+
+    def _artifact_records(self, directory: str, pattern: str, task_id: str | None = None) -> list[dict[str, object]]:
+        target_dir = self.path / directory
+        if not target_dir.exists():
+            return []
+        records: list[dict[str, object]] = []
+        for path in target_dir.glob(pattern):
+            if not path.is_file() or path.suffix != ".md":
+                continue
+            frontmatter = self._read_frontmatter(path)
+            if task_id and frontmatter.get("task_id") not in {None, task_id}:
+                continue
+            markdown = path.read_text(encoding="utf-8")
+            records.append(
+                {
+                    "path": str(path),
+                    "markdown": markdown,
+                    "frontmatter": frontmatter,
+                    "type": frontmatter.get("type") or path.stem,
+                    "worker": frontmatter.get("worker"),
+                    "created_at": frontmatter.get("created_at"),
+                }
+            )
+        return sorted(records, key=lambda item: str(item.get("created_at") or Path(str(item["path"])).stat().st_mtime))
 
     def _write(self, path: Path, content: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

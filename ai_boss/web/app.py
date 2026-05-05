@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from ai_boss.config.loader import AIBossConfig, load_config
+from ai_boss.config.writer import read_config_data, write_config_update
 from ai_boss.core.cli_resolver import resolve_cli_executable
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
@@ -54,6 +55,9 @@ class MiniWebApp:
             return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
         if path == "/api/preflight":
             return json_response(build_preflight(self._config()))
+        if path == "/api/settings":
+            config = self._config()
+            return json_response({"ok": True, "config": config.model_dump(mode="json"), "raw": read_config_data(config.system.vault_path)})
         if path == "/api/jobs":
             return json_response({"ok": True, "jobs": job_queue.list_jobs()})
         if path.startswith("/api/job/"):
@@ -65,19 +69,10 @@ class MiniWebApp:
         if path.startswith("/api/task/"):
             task_id = unquote(path.removeprefix("/api/task/"))
             vault = ObsidianVault(self._config().system.vault_path)
-            task_path = vault.find_task(task_id)
-            if not task_path:
+            detail = vault.task_detail(task_id)
+            if not detail:
                 return json_response({"ok": False, "error": "Задача не найдена."}, 404)
-            return json_response(
-                {
-                    "ok": True,
-                    "task": {
-                        "id": task_id,
-                        "path": str(task_path),
-                        "content": task_path.read_text(encoding="utf-8"),
-                    },
-                }
-            )
+            return json_response({"ok": True, **detail})
         return json_response({"ok": False, "error": "Маршрут не найден."}, 404)
 
     def _handle_post(self, path: str, payload: dict[str, Any]) -> "MiniResponse":
@@ -89,6 +84,11 @@ class MiniWebApp:
             return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
         if path == "/api/preflight":
             return json_response(build_preflight(self._config(), project_path))
+        if path == "/api/settings":
+            config = self._config()
+            updated = write_config_update(config.system.vault_path, payload)
+            self.config = updated
+            return json_response({"ok": True, "config": updated.model_dump(mode="json"), "raw": read_config_data(updated.system.vault_path)})
         if path == "/api/jobs":
             mode = str(payload.get("mode") or "do")
             text = str(payload.get("text") or "").strip()
@@ -97,6 +97,18 @@ class MiniWebApp:
             if not text:
                 raise AIBossError("Пустой запрос.")
             job = job_queue.submit(mode=mode, text=text, project_path=project_path)
+            return json_response({"ok": True, "job": job.to_dict()})
+        if path.startswith("/api/job/") and path.endswith("/cancel"):
+            job_id = unquote(path.removeprefix("/api/job/").removesuffix("/cancel"))
+            job = job_queue.cancel(job_id)
+            if not job:
+                return json_response({"ok": False, "error": "Задача web-очереди не найдена."}, 404)
+            return json_response({"ok": True, "job": job.to_dict()})
+        if path.startswith("/api/job/") and path.endswith("/retry"):
+            job_id = unquote(path.removeprefix("/api/job/").removesuffix("/retry"))
+            job = job_queue.retry(job_id)
+            if not job:
+                return json_response({"ok": False, "error": "Задача web-очереди не найдена."}, 404)
             return json_response({"ok": True, "job": job.to_dict()})
         orchestrator = Orchestrator(self._config())
         if path == "/api/ask":

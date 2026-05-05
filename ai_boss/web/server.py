@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from ai_boss.config.loader import AIBossConfig, load_config
+from ai_boss.config.writer import read_config_data, write_config_update
 from ai_boss.core.cli_resolver import resolve_cli_executable
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
@@ -73,6 +74,9 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/preflight":
             self._send_json(api_preflight({}))
             return
+        if parsed.path == "/api/settings":
+            self._send_json(api_settings())
+            return
         if parsed.path == "/api/jobs":
             self._send_json(api_jobs(limit=_int_query_param(parsed.query, "limit", 20)))
             return
@@ -111,8 +115,19 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/preflight":
                 self._send_json(api_preflight(payload))
                 return
+            if parsed.path == "/api/settings":
+                self._send_json(api_settings_update(payload))
+                return
             if parsed.path == "/api/jobs":
                 self._send_json(api_job_submit(payload))
+                return
+            if parsed.path.startswith("/api/job/") and parsed.path.endswith("/cancel"):
+                job_id = unquote(parsed.path.removeprefix("/api/job/").removesuffix("/cancel"))
+                self._send_json(api_job_cancel(job_id))
+                return
+            if parsed.path.startswith("/api/job/") and parsed.path.endswith("/retry"):
+                job_id = unquote(parsed.path.removeprefix("/api/job/").removesuffix("/retry"))
+                self._send_json(api_job_retry(job_id))
                 return
             self._send_json({"ok": False, "error": "Маршрут не найден."}, HTTPStatus.NOT_FOUND)
         except AIBossError as exc:
@@ -206,6 +221,17 @@ def api_preflight(payload: dict[str, Any], config: AIBossConfig | None = None) -
     return build_preflight(config, _payload_project_path(payload))
 
 
+def api_settings(config: AIBossConfig | None = None) -> dict[str, Any]:
+    config = config or load_config()
+    return {"ok": True, "config": config.model_dump(mode="json"), "raw": read_config_data(config.system.vault_path)}
+
+
+def api_settings_update(payload: dict[str, Any]) -> dict[str, Any]:
+    config = load_config()
+    updated = write_config_update(config.system.vault_path, payload)
+    return {"ok": True, "config": updated.model_dump(mode="json"), "raw": read_config_data(updated.system.vault_path)}
+
+
 def api_jobs(limit: int = 20) -> dict[str, Any]:
     return {"ok": True, "jobs": job_queue.list_jobs(limit=limit)}
 
@@ -228,13 +254,28 @@ def api_job_submit(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "job": job.to_dict()}
 
 
+def api_job_cancel(job_id: str) -> dict[str, Any]:
+    job = job_queue.cancel(job_id)
+    if not job:
+        return {"ok": False, "error": "Задача web-очереди не найдена."}
+    return {"ok": True, "job": job.to_dict()}
+
+
+def api_job_retry(job_id: str) -> dict[str, Any]:
+    job = job_queue.retry(job_id)
+    if not job:
+        return {"ok": False, "error": "Задача web-очереди не найдена."}
+    return {"ok": True, "job": job.to_dict()}
+
+
 def api_task(task_id: str, config: AIBossConfig | None = None) -> dict[str, Any]:
     config = config or load_config()
     vault = ObsidianVault(config.system.vault_path)
-    task_path = vault.find_task(task_id)
-    if not task_path:
+    detail = vault.task_detail(task_id)
+    if not detail:
         return {"ok": False, "error": "Задача не найдена."}
-    return {"ok": True, "path": str(task_path), "markdown": task_path.read_text(encoding="utf-8")}
+    task = detail["task"]
+    return {"ok": True, "path": task["path"], "markdown": task["markdown"], **detail}
 
 
 def api_ask(payload: dict[str, Any]) -> dict[str, Any]:
