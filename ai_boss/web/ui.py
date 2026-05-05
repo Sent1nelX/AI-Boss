@@ -6,28 +6,30 @@ INDEX_HTML = """<!doctype html>
   <title>AI-Boss Super Brain</title>
   <style>
     :root {
-      --bg: #f4f5f3;
-      --surface: #fbfbf9;
-      --surface-2: #f0f1ee;
-      --ink: #16181a;
-      --ink-2: #2c3033;
-      --muted: #6b7177;
-      --muted-2: #8d9298;
-      --line: #d9dad6;
-      --line-2: #e6e7e3;
-      --line-strong: #b8bab4;
-      --ok: #317957;
+      --bg: #eef1f5;
+      --surface: #fffdf8;
+      --surface-2: #f7f0df;
+      --ink: #17151f;
+      --ink-2: #2b2938;
+      --muted: #6d7280;
+      --muted-2: #9a8f7f;
+      --line: #d6d3c8;
+      --line-2: #ebe4d5;
+      --line-strong: #b9ad98;
+      --ok: #20735d;
       --ok-bg: #edf7f1;
-      --warn: #9a6a18;
-      --warn-bg: #fff7df;
-      --bad: #a34a35;
+      --warn: #9a5a12;
+      --warn-bg: #fff2d2;
+      --bad: #b54535;
       --bad-bg: #fff0ed;
-      --info: #4a668f;
+      --info: #385c98;
       --info-bg: #eef4fb;
-      --accent: #316f7a;
-      --w-gemini: #5c75ad;
-      --w-codex: #a65d47;
-      --w-claude: #9b7b22;
+      --accent: #0f766e;
+      --accent-2: #c05621;
+      --accent-3: #6d5bd0;
+      --w-gemini: #486fc7;
+      --w-codex: #c05621;
+      --w-claude: #a07512;
       --r-1: 3px;
       --r-2: 6px;
       --r-3: 10px;
@@ -52,11 +54,12 @@ INDEX_HTML = """<!doctype html>
       display: grid;
       grid-template-columns: 232px minmax(0, 1fr);
       min-height: 100vh;
-      background: var(--surface);
+      background: var(--bg);
     }
     .sidebar {
-      border-right: 1px solid var(--line);
-      background: var(--surface);
+      border-right: 1px solid #262231;
+      background: #17151f;
+      color: #f8f3e8;
       padding: 14px 12px;
       display: flex;
       flex-direction: column;
@@ -68,14 +71,14 @@ INDEX_HTML = """<!doctype html>
       align-items: center;
       gap: 9px;
       padding: 4px 6px 8px;
-      border-bottom: 1px solid var(--line-2);
+      border-bottom: 1px solid #302a3c;
     }
     .brand-mark {
       width: 22px;
       height: 22px;
       border-radius: 5px;
-      background: var(--ink);
-      color: var(--bg);
+      background: #1fb39f;
+      color: #061a17;
       display: grid;
       place-items: center;
       font-family: var(--f-mono);
@@ -86,7 +89,7 @@ INDEX_HTML = """<!doctype html>
     .brand-tag {
       margin-left: auto;
       font-family: var(--f-mono);
-      color: var(--muted);
+      color: #cbbf9b;
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: .06em;
@@ -97,7 +100,7 @@ INDEX_HTML = """<!doctype html>
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: .08em;
-      color: var(--muted-2);
+      color: #9d95aa;
       padding: 8px 8px 4px;
     }
     .nav button {
@@ -107,20 +110,20 @@ INDEX_HTML = """<!doctype html>
       width: 100%;
       padding: 6px 8px;
       border-radius: 5px;
-      color: var(--ink-2);
+      color: #ddd7ca;
       text-align: left;
     }
-    .nav button:hover { background: var(--surface-2); }
-    .nav button.active { background: var(--ink); color: var(--bg); }
+    .nav button:hover { background: #242030; }
+    .nav button.active { background: #fff8e8; color: #17151f; }
     .nav .ico { width: 14px; text-align: center; font-family: var(--f-mono); opacity: .72; }
-    .nav .ct { margin-left: auto; font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
-    .nav button.active .ct { color: rgba(255,255,255,.72); }
+    .nav .ct { margin-left: auto; font-family: var(--f-mono); font-size: 10px; color: #a99f8d; }
+    .nav button.active .ct { color: #7a6950; }
     .side-foot {
       margin-top: auto;
       display: grid;
       gap: 6px;
       padding-top: 10px;
-      border-top: 1px solid var(--line-2);
+      border-top: 1px solid #302a3c;
     }
     .side-foot .row {
       display: flex;
@@ -128,10 +131,10 @@ INDEX_HTML = """<!doctype html>
       gap: 8px;
       font-family: var(--f-mono);
       font-size: 10.5px;
-      color: var(--muted);
+      color: #aaa2b6;
       min-width: 0;
     }
-    .side-foot b { color: var(--ink-2); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .side-foot b { color: #fff8e8; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .main { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
     .topbar {
       display: grid;
@@ -175,20 +178,28 @@ INDEX_HTML = """<!doctype html>
     }
     .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     .panel {
-      background: #fff;
+      background: var(--surface);
       border: 1px solid var(--line);
+      border-top: 3px solid var(--line-strong);
       border-radius: var(--r-2);
       overflow: hidden;
       min-width: 0;
-      box-shadow: 0 4px 14px -12px rgba(20,24,33,.24);
+      box-shadow: 0 10px 24px -20px rgba(23,21,31,.45);
     }
+    .panel.command { border-top-color: var(--accent); }
+    .panel.active { border-top-color: #17151f; }
+    .panel.queue { border-top-color: var(--accent-3); }
+    .panel.preflight { border-top-color: var(--ok); }
+    .panel.workers { border-top-color: var(--accent-2); }
+    .panel.projects { border-top-color: var(--info); }
+    .panel.history { border-top-color: var(--w-claude); }
     .p-head {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 9px 12px;
       border-bottom: 1px solid var(--line-2);
-      background: var(--surface);
+      background: #fff8e8;
     }
     .p-head h3 { margin: 0; font-size: 12.5px; font-weight: 650; }
     .h-meta {
@@ -214,8 +225,8 @@ INDEX_HTML = """<!doctype html>
       white-space: nowrap;
     }
     .btn:hover { background: var(--surface-2); border-color: var(--line-strong); }
-    .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-    .btn.primary:hover { background: #000; }
+    .btn.primary { background: var(--accent); color: #f7fffb; border-color: var(--accent); }
+    .btn.primary:hover { background: #075f58; }
     .btn.danger { color: var(--bad); border-color: #e6c8c2; }
     .btn.danger:hover { background: var(--bad-bg); }
     .btn.sm { padding: 3px 7px; font-size: 11.5px; }
@@ -228,7 +239,7 @@ INDEX_HTML = """<!doctype html>
       padding: 2px 7px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      background: #fff;
+      background: #fffdf8;
       color: var(--muted);
       font-family: var(--f-mono);
       font-size: 10.5px;
@@ -278,7 +289,7 @@ INDEX_HTML = """<!doctype html>
       font-size: 12px;
     }
     .mode-tabs button:last-child { border-right: 0; }
-    .mode-tabs button.on { background: #fff; color: var(--ink); }
+    .mode-tabs button.on { background: #fffdf8; color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
     .field-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
     .check-list { display: grid; gap: 6px; }
     .check {
@@ -289,7 +300,7 @@ INDEX_HTML = """<!doctype html>
       padding: 7px 8px;
       border: 1px solid var(--line-2);
       border-radius: var(--r-1);
-      background: var(--surface);
+      background: #fffaf0;
     }
     .glyph {
       width: 18px;
@@ -310,7 +321,7 @@ INDEX_HTML = """<!doctype html>
     .worker {
       border: 1px solid var(--line);
       border-radius: var(--r-1);
-      background: var(--surface);
+      background: #fffaf0;
       padding: 10px;
       display: grid;
       gap: 6px;
@@ -322,7 +333,7 @@ INDEX_HTML = """<!doctype html>
     .worker .role { font-family: var(--f-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
     .worker .name { font-weight: 650; }
     .worker .meta { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
-    .live-log { background: #161718; color: #cfd0cb; font-family: var(--f-mono); min-height: 244px; max-height: 420px; overflow: auto; }
+    .live-log { background: #14131a; color: #d8d2c6; font-family: var(--f-mono); min-height: 244px; max-height: 420px; overflow: auto; }
     .ll { display: grid; grid-template-columns: 56px 62px minmax(0, 1fr); gap: 8px; padding: 3px 10px; border-bottom: 1px solid #222426; font-size: 11.5px; }
     .ll .t { color: #6b7177; }
     .ll .src { color: #9ba1a8; text-transform: uppercase; font-size: 10.5px; letter-spacing: .04em; }
@@ -346,20 +357,23 @@ INDEX_HTML = """<!doctype html>
     }
     .step.done .num { background: var(--ok-bg); color: var(--ok); }
     .step.curr .num { background: var(--ink); color: var(--bg); }
-    .task-list, .project-list { display: grid; gap: 6px; }
-    .task-row, .project-row {
+    .task-list, .project-list, .job-list { display: grid; gap: 6px; }
+    .task-row, .project-row, .job-row {
       display: grid;
       gap: 2px;
       width: 100%;
       border: 1px solid var(--line);
       border-radius: var(--r-1);
-      background: #fff;
+      background: #fffdf8;
       padding: 8px 9px;
       text-align: left;
     }
-    .task-row:hover, .project-row:hover { border-color: var(--line-strong); background: var(--surface); }
-    .task-row .id, .project-row .path { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .task-row .title, .project-row .name { font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-row:hover, .project-row:hover, .job-row:hover { border-color: var(--line-strong); background: #fff8e8; }
+    .job-row.running { border-color: #9a92df; background: #f3f1ff; }
+    .job-row.succeeded { border-color: #b7d6c5; background: #f0fbf4; }
+    .job-row.failed { border-color: #e2b6aa; background: #fff2ef; }
+    .task-row .id, .project-row .path, .job-row .id { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-row .title, .project-row .name, .job-row .title { font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .meta-cell { border: 1px solid var(--line-2); border-radius: var(--r-1); padding: 8px; background: var(--surface); }
     .meta-cell .k { font-family: var(--f-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -400,6 +414,7 @@ INDEX_HTML = """<!doctype html>
         <div class="nav-group">Работа</div>
         <button class="active" data-scroll="composer"><span class="ico">⌘</span>Новая задача<span class="ct">auto</span></button>
         <button data-scroll="activeTask"><span class="ico">◉</span>Активная задача<span class="ct" id="activeTaskCount">0</span></button>
+        <button data-scroll="queue"><span class="ico">Q</span>Очередь<span class="ct" id="jobCount">0</span></button>
         <button data-scroll="history"><span class="ico">T</span>История<span class="ct" id="taskCount">0</span></button>
         <div class="nav-group">Контекст</div>
         <button data-scroll="preflight"><span class="ico">✓</span>Preflight<span class="ct" id="preflightTiny">?</span></button>
@@ -427,7 +442,7 @@ INDEX_HTML = """<!doctype html>
       </header>
       <section class="workspace">
         <div class="col">
-          <section class="panel" id="composer">
+          <section class="panel command" id="composer">
             <div class="p-head">
               <h3>Command composer</h3>
               <span class="h-meta">Gemini → Codex → Review</span>
@@ -469,7 +484,7 @@ INDEX_HTML = """<!doctype html>
               </div>
             </div>
           </section>
-          <section class="panel" id="activeTask">
+          <section class="panel active" id="activeTask">
             <div class="p-head">
               <h3>Active task</h3>
               <span class="h-meta" id="activeTaskMeta">нет активного запуска</span>
@@ -477,7 +492,15 @@ INDEX_HTML = """<!doctype html>
             </div>
             <div class="live-log" id="liveLog"></div>
           </section>
-          <section class="panel" id="taskDetails">
+          <section class="panel queue" id="queue">
+            <div class="p-head">
+              <h3>Очередь запусков</h3>
+              <span class="h-meta" id="queueMeta">0 задач</span>
+              <div class="right"><button class="btn sm" id="refreshJobs" type="button">Обновить</button></div>
+            </div>
+            <div class="p-body"><div class="job-list" id="jobsBox"></div></div>
+          </section>
+          <section class="panel history" id="taskDetails">
             <div class="p-head"><h3>Детали задачи</h3><span class="h-meta" id="taskDetailsMeta">выберите задачу</span></div>
             <div class="p-body">
               <div id="taskMeta" class="meta-grid"></div>
@@ -487,7 +510,7 @@ INDEX_HTML = """<!doctype html>
           </section>
         </div>
         <div class="col">
-          <section class="panel" id="preflight">
+          <section class="panel preflight" id="preflight">
             <div class="p-head">
               <h3>Preflight</h3>
               <span class="h-meta">перед run/review</span>
@@ -495,11 +518,11 @@ INDEX_HTML = """<!doctype html>
             </div>
             <div class="p-body"><div class="check-list" id="preflightBox"></div></div>
           </section>
-          <section class="panel" id="workers">
+          <section class="panel workers" id="workers">
             <div class="p-head"><h3>Workers</h3><span class="h-meta">CLI и лимиты</span></div>
             <div class="p-body"><div class="worker-grid" id="workersBox"></div></div>
           </section>
-          <section class="panel" id="projects">
+          <section class="panel projects" id="projects">
             <div class="p-head"><h3>Проекты</h3><span class="h-meta">profiles.yaml</span></div>
             <div class="p-body">
               <div class="project-list" id="projectsBox"></div>
@@ -512,7 +535,7 @@ INDEX_HTML = """<!doctype html>
               <button class="btn" id="addProject" type="button">+ Добавить профиль</button>
             </div>
           </section>
-          <section class="panel" id="history">
+          <section class="panel history" id="history">
             <div class="p-head">
               <h3>История</h3>
               <span class="h-meta">Obsidian Vault</span>
@@ -526,7 +549,7 @@ INDEX_HTML = """<!doctype html>
   </div>
   <script>
     const $ = (id) => document.getElementById(id);
-    const state = { mode: 'do', status: null, tasks: [], projects: [], activeTask: null };
+    const state = { mode: 'do', status: null, tasks: [], projects: [], jobs: [], activeJobId: null, pollTimer: null };
     const lifecycle = ['created', 'planned', 'awaiting_approval', 'running', 'reviewed', 'fixing', 'finished'];
 
     function node(tag, cls, text) {
@@ -552,6 +575,23 @@ INDEX_HTML = """<!doctype html>
       $('liveLog').scrollTop = $('liveLog').scrollHeight;
     }
     function addJsonLog(source, data) { addLog(source, JSON.stringify(data, null, 2)); }
+    function logTime(value) {
+      if (!value) return '--:--:--';
+      return new Date(value).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    }
+    function renderLiveJob(job) {
+      $('liveLog').innerHTML = '';
+      (job.logs || []).forEach(entry => {
+        const row = node('div', `ll ${entry.source || 'sys'} ${entry.source === 'err' ? 'err' : ''}`);
+        row.appendChild(node('span', 't', logTime(entry.time)));
+        row.appendChild(node('span', 'src', entry.source || 'sys'));
+        row.appendChild(node('span', 'body', entry.message || ''));
+        $('liveLog').appendChild(row);
+      });
+      if (job.result) addLog('sys', `готово · worker=${job.result.worker || 'n/a'} · task=${job.result.task_id || 'n/a'}`, 'ok');
+      if (job.error) addLog('err', job.error, 'err');
+      $('liveLog').scrollTop = $('liveLog').scrollHeight;
+    }
     async function getJson(url) { const res = await fetch(url); return res.json(); }
     async function postJson(url, payload) {
       const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -636,6 +676,23 @@ INDEX_HTML = """<!doctype html>
         $('tasksBox').appendChild(btn);
       });
     }
+    function renderJobs(data) {
+      state.jobs = data.jobs || [];
+      $('jobCount').textContent = state.jobs.length;
+      $('queueMeta').textContent = `${state.jobs.length} задач`;
+      $('jobsBox').innerHTML = '';
+      if (!state.jobs.length) {
+        $('jobsBox').appendChild(node('div', 'empty', 'Очередь пуста. Новый запуск появится здесь сразу.'));
+        return;
+      }
+      state.jobs.forEach(job => {
+        const btn = node('button', `job-row ${job.status || 'queued'}`);
+        btn.type = 'button';
+        btn.innerHTML = `<span class="id">${job.id} · ${job.mode} · ${job.status}</span><span class="title">${job.text}</span><span class="id">${job.project_path || 'текущий проект'}</span>`;
+        btn.addEventListener('click', () => openJob(job.id));
+        $('jobsBox').appendChild(btn);
+      });
+    }
     function renderTaskDetail(taskId, content, path) {
       $('taskDetailsMeta').textContent = taskId;
       $('taskMeta').innerHTML = '';
@@ -650,7 +707,34 @@ INDEX_HTML = """<!doctype html>
     async function loadStatus() { renderStatus(await getJson('/api/status')); }
     async function loadProjects() { renderProjects(await getJson('/api/projects')); }
     async function loadTasks() { renderTasks(await getJson('/api/tasks?limit=30')); }
+    async function loadJobs() { renderJobs(await getJson('/api/jobs')); }
     async function runPreflight() { const data = await postJson('/api/preflight', {project_path: $('projectPath').value.trim() || null}); renderPreflight(data); return data; }
+    async function openJob(id) {
+      const data = await getJson(`/api/job/${encodeURIComponent(id)}`);
+      if (!data.ok) { addLog('err', data.error || 'Запуск не найден', 'err'); return null; }
+      state.activeJobId = id;
+      $('activeTaskMeta').textContent = `${data.job.mode} · ${data.job.status} · ${data.job.id}`;
+      renderLiveJob(data.job);
+      return data.job;
+    }
+    async function pollJob(id) {
+      if (state.pollTimer) clearTimeout(state.pollTimer);
+      const job = await openJob(id);
+      await loadJobs();
+      if (!job) {
+        $('sendBtn').disabled = false;
+        $('activeTaskCount').textContent = '0';
+        return;
+      }
+      const active = ['queued', 'running'].includes(job.status);
+      $('activeTaskCount').textContent = active ? '1' : '0';
+      $('sendBtn').disabled = active;
+      if (active) {
+        state.pollTimer = setTimeout(() => pollJob(id), 1000);
+        return;
+      }
+      await Promise.all([loadStatus(), loadTasks(), runPreflight()]);
+    }
     async function openTask(id) {
       const data = await getJson(`/api/task/${encodeURIComponent(id)}`);
       if (!data.ok) { addLog('err', data.error || 'Задача не найдена', 'err'); return; }
@@ -661,24 +745,25 @@ INDEX_HTML = """<!doctype html>
       if (mode !== 'review' && !body.text) { addLog('err', 'Введите запрос.', 'err'); return; }
       if (mode === 'review' && !body.text) body.text = 'Проверь текущие изменения';
       $('sendBtn').disabled = true;
-      state.activeTask = body.text;
-      $('activeTaskMeta').textContent = mode;
+      $('activeTaskMeta').textContent = `${mode} · создание запуска`;
       $('activeTaskCount').textContent = '1';
+      $('liveLog').innerHTML = '';
       addLog('sys', `${mode}: ${body.text}`);
       if (['run', 'do'].includes(mode)) addLog('gem', 'planner/reporter будет выбран автоматически');
       if (mode === 'run') addLog('cdx', 'Codex остаётся единственным write-agent');
       try {
-        const data = await postJson(`/api/${mode}`, body);
+        const data = await postJson('/api/jobs', {...body, mode});
         if (!data.ok) {
           addLog('err', data.error || 'Ошибка выполнения', 'err');
+          $('sendBtn').disabled = false;
+          $('activeTaskCount').textContent = '0';
         } else {
-          addLog('sys', `готово · worker=${data.result?.worker || data.worker || 'n/a'}`, 'ok');
-          addJsonLog('sys', data);
-          await Promise.all([loadStatus(), loadTasks(), runPreflight()]);
+          state.activeJobId = data.job.id;
+          addLog('sys', `очередь · job=${data.job.id}`);
+          await pollJob(data.job.id);
         }
       } catch (error) {
         addLog('err', String(error), 'err');
-      } finally {
         $('sendBtn').disabled = false;
         $('activeTaskCount').textContent = '0';
       }
@@ -704,6 +789,7 @@ INDEX_HTML = """<!doctype html>
     $('useCurrent').addEventListener('click', () => { if (state.status) $('projectPath').value = state.status.project.current_path; runPreflight(); });
     $('refreshAll').addEventListener('click', () => refreshAll());
     $('refreshTasks').addEventListener('click', loadTasks);
+    $('refreshJobs').addEventListener('click', loadJobs);
     $('clearLog').addEventListener('click', () => $('liveLog').innerHTML = '');
     $('addProject').addEventListener('click', async () => {
       const name = $('projectName').value.trim();
@@ -714,13 +800,14 @@ INDEX_HTML = """<!doctype html>
       await loadProjects();
     });
     async function refreshAll() {
-      await Promise.all([loadStatus(), loadProjects(), loadTasks()]);
+      await Promise.all([loadStatus(), loadProjects(), loadTasks(), loadJobs()]);
       await runPreflight();
     }
     addLog('sys', 'AI-Boss dashboard готов. Выберите проект, проверьте preflight и запустите задачу.');
     refreshAll();
     setInterval(() => { loadStatus(); }, 4000);
     setInterval(() => { loadTasks(); }, 10000);
+    setInterval(() => { loadJobs(); }, 5000);
   </script>
 </body>
 </html>

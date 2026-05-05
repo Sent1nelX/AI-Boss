@@ -15,6 +15,7 @@ from ai_boss.core.preflight import build_preflight
 from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
+from ai_boss.web.jobs import job_queue
 
 
 def create_app(config: AIBossConfig | None = None) -> MiniWebApp:
@@ -53,6 +54,14 @@ class MiniWebApp:
             return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
         if path == "/api/preflight":
             return json_response(build_preflight(self._config()))
+        if path == "/api/jobs":
+            return json_response({"ok": True, "jobs": job_queue.list_jobs()})
+        if path.startswith("/api/job/"):
+            job_id = unquote(path.removeprefix("/api/job/"))
+            job = job_queue.get_job(job_id)
+            if not job:
+                return json_response({"ok": False, "error": "Задача web-очереди не найдена."}, 404)
+            return json_response({"ok": True, "job": job})
         if path.startswith("/api/task/"):
             task_id = unquote(path.removeprefix("/api/task/"))
             vault = ObsidianVault(self._config().system.vault_path)
@@ -72,8 +81,24 @@ class MiniWebApp:
         return json_response({"ok": False, "error": "Маршрут не найден."}, 404)
 
     def _handle_post(self, path: str, payload: dict[str, Any]) -> "MiniResponse":
-        orchestrator = Orchestrator(self._config())
         project_path = _payload_project_path(payload)
+        if path == "/api/projects":
+            name = _required_payload_text(payload, "name")
+            path_value = _required_payload_text(payload, "path")
+            ProjectStore(self._config().system.vault_path).add_project(name, Path(path_value), make_default=bool(payload.get("default")))
+            return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
+        if path == "/api/preflight":
+            return json_response(build_preflight(self._config(), project_path))
+        if path == "/api/jobs":
+            mode = str(payload.get("mode") or "do")
+            text = str(payload.get("text") or "").strip()
+            if mode == "review" and not text:
+                text = "Проверь текущие изменения"
+            if not text:
+                raise AIBossError("Пустой запрос.")
+            job = job_queue.submit(mode=mode, text=text, project_path=project_path)
+            return json_response({"ok": True, "job": job.to_dict()})
+        orchestrator = Orchestrator(self._config())
         if path == "/api/ask":
             result = orchestrator.ask(_required_payload_text(payload, "question", "text"))
             return json_response(_flat_result(result))
@@ -87,13 +112,6 @@ class MiniWebApp:
         if path == "/api/run":
             result = orchestrator.run(_required_payload_text(payload, "task", "text"), project_path)
             return json_response(_flat_result(result))
-        if path == "/api/projects":
-            name = _required_payload_text(payload, "name")
-            path_value = _required_payload_text(payload, "path")
-            ProjectStore(self._config().system.vault_path).add_project(name, Path(path_value), make_default=bool(payload.get("default")))
-            return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
-        if path == "/api/preflight":
-            return json_response(build_preflight(self._config(), project_path))
         return json_response({"ok": False, "error": "Маршрут не найден."}, 404)
 
 

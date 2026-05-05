@@ -20,6 +20,7 @@ from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.task import TaskType
+from ai_boss.web.jobs import job_queue
 from ai_boss.web.ui import INDEX_HTML as DASHBOARD_HTML
 
 
@@ -72,6 +73,13 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/preflight":
             self._send_json(api_preflight({}))
             return
+        if parsed.path == "/api/jobs":
+            self._send_json(api_jobs(limit=_int_query_param(parsed.query, "limit", 20)))
+            return
+        if parsed.path.startswith("/api/job/"):
+            job_id = unquote(parsed.path.removeprefix("/api/job/"))
+            self._send_json(api_job(job_id))
+            return
         if parsed.path.startswith("/api/task/"):
             task_id = unquote(parsed.path.removeprefix("/api/task/"))
             self._send_json(api_task(task_id))
@@ -102,6 +110,9 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/preflight":
                 self._send_json(api_preflight(payload))
+                return
+            if parsed.path == "/api/jobs":
+                self._send_json(api_job_submit(payload))
                 return
             self._send_json({"ok": False, "error": "Маршрут не найден."}, HTTPStatus.NOT_FOUND)
         except AIBossError as exc:
@@ -191,6 +202,28 @@ def api_project_add(payload: dict[str, Any]) -> dict[str, Any]:
 def api_preflight(payload: dict[str, Any], config: AIBossConfig | None = None) -> dict[str, Any]:
     config = config or load_config()
     return build_preflight(config, _payload_project_path(payload))
+
+
+def api_jobs(limit: int = 20) -> dict[str, Any]:
+    return {"ok": True, "jobs": job_queue.list_jobs(limit=limit)}
+
+
+def api_job(job_id: str) -> dict[str, Any]:
+    job = job_queue.get_job(job_id)
+    if not job:
+        return {"ok": False, "error": "Задача web-очереди не найдена."}
+    return {"ok": True, "job": job}
+
+
+def api_job_submit(payload: dict[str, Any]) -> dict[str, Any]:
+    mode = str(payload.get("mode") or "do")
+    text = str(payload.get("text") or "").strip()
+    if mode == "review" and not text:
+        text = "Проверь текущие изменения"
+    if not text:
+        raise AIBossError("Пустой запрос.")
+    job = job_queue.submit(mode=mode, text=text, project_path=_payload_project_path(payload))
+    return {"ok": True, "job": job.to_dict()}
 
 
 def api_task(task_id: str, config: AIBossConfig | None = None) -> dict[str, Any]:

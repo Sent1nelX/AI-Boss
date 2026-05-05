@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,10 @@ def web_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> JsonClient:
     monkeypatch.setattr(web_app, "Orchestrator", FakeOrchestrator, raising=False)
     monkeypatch.setattr("ai_boss.core.orchestrator.Orchestrator", FakeOrchestrator)
     monkeypatch.setattr("ai_boss.cli.app.load_config", lambda vault_path=None: config)
+    jobs = importlib.import_module("ai_boss.web.jobs")
+    jobs.job_queue.reset()
+    monkeypatch.setattr(jobs, "load_config", lambda vault_path=None: config, raising=False)
+    monkeypatch.setattr(jobs, "Orchestrator", FakeOrchestrator, raising=False)
 
     assert hasattr(web_app, "create_app"), "ai_boss.web.app must expose create_app(config=None)"
     try:
@@ -162,6 +167,32 @@ def test_projects_and_preflight_endpoints_are_available(web_client: JsonClient, 
 
     assert status_code == 200
     assert "checks" in body
+
+
+def test_web_job_queue_runs_action_and_exposes_live_state(web_client: JsonClient) -> None:
+    status_code, body = web_client.post("/api/jobs", {"mode": "run", "text": "Добавь web очередь", "project_path": "/tmp/project"})
+
+    assert status_code == 200
+    assert body["ok"] is True
+    job_id = body["job"]["id"]
+    assert body["job"]["status"] in {"queued", "running"}
+
+    for _ in range(40):
+        status_code, body = web_client.get(f"/api/job/{job_id}")
+        assert status_code == 200
+        if body["job"]["status"] in {"succeeded", "failed"}:
+            break
+        time.sleep(0.01)
+
+    assert body["job"]["status"] == "succeeded"
+    assert body["job"]["result"]["worker"] == "codex"
+    assert body["job"]["logs"]
+    assert FakeOrchestrator.calls[-1][0] == "run"
+
+    status_code, body = web_client.get("/api/jobs")
+
+    assert status_code == 200
+    assert body["jobs"][0]["id"] == job_id
 
 
 @pytest.mark.parametrize(
