@@ -31,9 +31,10 @@ def test_worker_run_success_uses_mocked_subprocess_and_updates_state(
     vault = ObsidianVault(tmp_path / "vault")
     vault.create()
 
-    def fake_run(args, cwd=None, text=False, capture_output=False, timeout=None, check=True):
+    def fake_run(args, cwd=None, env=None, text=False, capture_output=False, timeout=None, check=True):
         assert args == ["mock-ai", "--prompt", "hello"]
         assert cwd == tmp_path
+        assert env == {"PATH": "/mock/bin"}
         assert text is True
         assert capture_output is True
         assert timeout == 7
@@ -41,6 +42,7 @@ def test_worker_run_success_uses_mocked_subprocess_and_updates_state(
         return SimpleNamespace(stdout="answer", stderr="", returncode=0)
 
     monkeypatch.setattr("ai_boss.workers.base.resolved_command", lambda command: command)
+    monkeypatch.setattr("ai_boss.workers.base.resolved_command_env", lambda command: {"PATH": "/mock/bin"})
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     worker = BaseWorker(["mock-ai", "--prompt"], vault, timeout=7)

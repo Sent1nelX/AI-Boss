@@ -40,6 +40,20 @@ def resolved_command(command: list[str]) -> list[str]:
     return [executable, *command[1:]]
 
 
+def resolved_command_env(command: list[str], env: dict[str, str] | None = None) -> dict[str, str]:
+    resolved_env = dict(env or os.environ)
+    if not command:
+        return resolved_env
+    executable = resolve_cli_executable(command[0])
+    if not executable or not os.path.isabs(executable):
+        return resolved_env
+    bin_dir = os.path.dirname(executable)
+    path_parts = resolved_env.get("PATH", "").split(os.pathsep)
+    if bin_dir not in path_parts:
+        resolved_env["PATH"] = os.pathsep.join([bin_dir, *[part for part in path_parts if part]])
+    return resolved_env
+
+
 def _resolve_with_shell(shell: str, command: str) -> str | None:
     if not os.path.exists(shell):
         return None

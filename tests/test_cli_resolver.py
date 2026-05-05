@@ -34,3 +34,12 @@ def test_resolved_command_replaces_only_executable(monkeypatch) -> None:
     monkeypatch.setattr(cli_resolver, "resolve_cli_executable", lambda command: "/opt/bin/gemini")
 
     assert cli_resolver.resolved_command(["gemini", "-p"]) == ["/opt/bin/gemini", "-p"]
+
+
+def test_resolved_command_env_prepends_resolved_executable_directory(monkeypatch) -> None:
+    monkeypatch.setattr(cli_resolver, "resolve_cli_executable", lambda command: "/home/user/.nvm/bin/gemini")
+
+    env = cli_resolver.resolved_command_env(["gemini", "-p"], {"PATH": "/usr/bin:/bin"})
+
+    assert env["PATH"].split(":")[0] == "/home/user/.nvm/bin"
+    assert "/usr/bin" in env["PATH"]

@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from ai_boss.core.cli_resolver import resolved_command
+from ai_boss.core.cli_resolver import resolved_command, resolved_command_env
 from ai_boss.core.runtime import cancel_requested, emit_runtime_log, runtime_hooks_enabled
 from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.state_store import WorkerStateStore
@@ -38,12 +38,14 @@ class BaseWorker:
         exit_code: int | None = None
         try:
             command = resolved_command(self.command)
+            env = resolved_command_env(self.command)
             if runtime_hooks_enabled():
-                stdout, stderr, exit_code = self._run_streaming([*command, prompt], cwd)
+                stdout, stderr, exit_code = self._run_streaming([*command, prompt], cwd, env)
             else:
                 completed = subprocess.run(
                     [*command, prompt],
                     cwd=cwd,
+                    env=env,
                     text=True,
                     capture_output=True,
                     timeout=self.timeout,
@@ -79,10 +81,11 @@ class BaseWorker:
             self.vault.write_error(f"Ошибка worker {self.name}", combined.strip() or "Нет вывода", self.name)
         return result
 
-    def _run_streaming(self, args: list[str], cwd: Path | None) -> tuple[str, str, int | None]:
+    def _run_streaming(self, args: list[str], cwd: Path | None, env: dict[str, str]) -> tuple[str, str, int | None]:
         process = subprocess.Popen(
             args,
             cwd=cwd,
+            env=env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
