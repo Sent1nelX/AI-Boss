@@ -1,0 +1,59 @@
+system:
+  name: AI-Boss Super Brain
+  language: ru
+  vault_path: ~/AI-Boss-Vault
+  default_project_path: null
+
+safety:
+  require_git_repo: true
+  block_if_dirty_tree: true
+  create_branch_per_task: true
+  allow_parallel_writes: false
+  max_fix_loops: 2
+
+workers:
+  gemini:
+    enabled: true
+    command: ["gemini", "-p"]
+    roles:
+      - planner
+      - reviewer
+      - reporter
+      - fallback
+    cost_level: low
+
+  codex:
+    enabled: true
+    command: ["codex", "exec"]
+    roles:
+      - coder
+      - fixer
+    cost_level: high
+    avoid_for_small_tasks: true
+    allow_subagents: true
+    subagent_policy: auto
+
+  claude:
+    enabled: true
+    command: ["claude", "-p"]
+    roles:
+      - architect
+      - reviewer
+    cost_level: high
+    fallback_to: gemini
+
+routing:
+  simple_questions: gemini
+  planning: gemini
+  code_changes: codex
+  bugfix: codex
+  refactor: codex
+  test_generation: codex
+  deep_review: claude
+  review_fallback: gemini
+  architecture_fallback: gemini
+
+verification:
+  default_commands:
+    - "git status --short"
+    - "git diff --stat"
