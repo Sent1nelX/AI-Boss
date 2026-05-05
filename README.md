@@ -291,6 +291,8 @@ Web-интерфейс предназначен для работы на той 
 - запустить изменение через полный pipeline `run`: Planner → Codex → Reviewer → bounded fix-loop → Reporter;
 - проверить текущий `git diff` через `review`;
 - посмотреть статус Vault, проекта, CLI-инструментов и worker state;
+- выполнить preflight перед `run` или `review`;
+- добавлять и выбирать проектные профили;
 - выбрать или увидеть текущий project path;
 - открыть список последних задач;
 - посмотреть карточку задачи и связанные Markdown-артефакты из Vault.
@@ -337,6 +339,31 @@ ai-boss do "Проверь текущие изменения" --project-path ~/D
 ### ai-boss status
 
 Показывает путь к Vault, состояние проекта из конфига, наличие CLI-команд и статусы агентов из `workers.yaml`. Реальные AI-запросы не выполняются.
+
+### ai-boss preflight
+
+```bash
+ai-boss preflight
+ai-boss preflight --project-path /path/to/project
+```
+
+Проверяет готовность перед `run` или `review`: Vault, наличие CLI, worker state, git-репозиторий, dirty tree и запрет параллельных записей.
+
+### Проектные профили
+
+```bash
+ai-boss project-add my-app ~/Projects/my-app --default
+ai-boss project-list
+ai-boss project-remove my-app
+```
+
+Профили сохраняются в:
+
+```text
+~/AI-Boss-Vault/99_System/projects.yaml
+```
+
+Они нужны, чтобы быстро выбирать рабочий проект в CLI/web UI и не вводить длинные пути руками.
 
 ### ai-boss web
 

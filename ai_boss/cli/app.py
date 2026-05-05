@@ -10,8 +10,10 @@ from ai_boss.config.loader import load_config
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.core.orchestrator import Orchestrator
+from ai_boss.core.preflight import build_preflight
 from ai_boss.core.task_classifier import TaskClassifier
 from ai_boss.memory.obsidian_vault import ObsidianVault
+from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.task import TaskType
 from ai_boss.web.server import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT, serve_web
@@ -37,7 +39,7 @@ def interactive() -> None:
     config = load_config()
     project_path = _infer_initial_project(config)
     console.print("[bold green]AI-Boss Super Brain[/bold green]")
-    console.print("Пишите задачу обычным текстом. Служебные команды: /help, /status, /tasks, /project, /exit.")
+    console.print("Пишите задачу обычным текстом. Служебные команды: /help, /status, /preflight, /tasks, /project, /exit.")
     if project_path:
         console.print(f"[dim]Проект сессии: {project_path}[/dim]")
     else:
@@ -64,8 +66,14 @@ def interactive() -> None:
         if text == "/status":
             _print_status(config)
             continue
+        if text == "/preflight":
+            _print_preflight(config, project_path)
+            continue
         if text in {"/tasks", "/history"}:
             _print_tasks(config)
+            continue
+        if text == "/projects":
+            _print_projects(config)
             continue
         if text.startswith("/show "):
             _print_task(config, text.removeprefix("/show ").strip())
@@ -126,6 +134,40 @@ def tasks(limit: int = typer.Option(20, "--limit", "-n", help="Сколько п
 def show(task_id: str) -> None:
     """Показать markdown-файл задачи по id или префиксу id."""
     _print_task(load_config(), task_id)
+
+
+@app.command()
+def preflight(project_path: Path | None = typer.Option(None, "--project-path", "-p", help="Путь к git-проекту.")) -> None:
+    """Проверить готовность Vault, CLI workers и проекта перед run/review."""
+    _print_preflight(load_config(), project_path)
+
+
+@app.command("project-list")
+def project_list() -> None:
+    """Показать сохранённые проектные профили."""
+    _print_projects(load_config())
+
+
+@app.command("project-add")
+def project_add(
+    name: str,
+    path: Path = typer.Argument(..., help="Путь к проекту."),
+    default: bool = typer.Option(False, "--default", help="Сделать проект профилем по умолчанию."),
+) -> None:
+    """Добавить проектный профиль в Vault."""
+    config = load_config()
+    ProjectStore(config.system.vault_path).add_project(name, path, make_default=default)
+    console.print(f"[green]Проект добавлен:[/green] {name} -> {path.expanduser().resolve()}")
+
+
+@app.command("project-remove")
+def project_remove(name: str) -> None:
+    """Удалить проектный профиль из Vault."""
+    removed = ProjectStore(load_config().system.vault_path).remove_project(name)
+    if removed:
+        console.print(f"[green]Проект удалён:[/green] {name}")
+    else:
+        console.print(f"[yellow]Проект не найден:[/yellow] {name}")
 
 
 @app.command()
@@ -268,6 +310,32 @@ def _print_status(config) -> None:
         console.print("[yellow]Предупреждение:[/yellow] выполните `ai-boss init`.")
 
 
+def _print_preflight(config, project_path: Path | None = None) -> None:
+    data = build_preflight(config, project_path)
+    title = "Preflight: готово" if data["ok"] else "Preflight: есть предупреждения"
+    table = Table(title=title)
+    table.add_column("Проверка")
+    table.add_column("OK")
+    table.add_column("Детали")
+    for check in data["checks"]:
+        table.add_row(str(check["name"]), "да" if check["ok"] else "нет", str(check["detail"]))
+    console.print(table)
+
+
+def _print_projects(config) -> None:
+    projects = ProjectStore(config.system.vault_path).list_projects()
+    if not projects:
+        console.print("Проектные профили пока не добавлены.")
+        return
+    table = Table(title=f"Проекты: {len(projects)}")
+    table.add_column("Название")
+    table.add_column("Путь")
+    table.add_column("По умолчанию")
+    for project in projects:
+        table.add_row(str(project.get("name", "")), str(project.get("path", "")), "да" if project.get("default") else "")
+    console.print(table)
+
+
 def _print_tasks(config, limit: int = 20) -> None:
     vault = ObsidianVault(config.system.vault_path)
     tasks = vault.list_tasks(limit=limit)
@@ -315,8 +383,10 @@ def _print_interactive_help() -> None:
 
 Служебные команды:
   /status              показать состояние Vault, CLI и текущей папки
+  /preflight           проверить готовность перед run/review
   /tasks               показать последние задачи
   /show TASK_ID        показать markdown-файл задачи
+  /projects            показать проектные профили
   /project             показать проект текущей сессии
   /project /path       выбрать проект для этой сессии
   /clear-project       сбросить проект сессии

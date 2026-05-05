@@ -11,7 +11,9 @@ from ai_boss.config.loader import AIBossConfig, load_config
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.core.orchestrator import Orchestrator
+from ai_boss.core.preflight import build_preflight
 from ai_boss.memory.obsidian_vault import ObsidianVault
+from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
 
 
@@ -47,6 +49,10 @@ class MiniWebApp:
             vault = ObsidianVault(self._config().system.vault_path)
             tasks = [_json_safe_task(task) for task in vault.list_tasks()]
             return json_response({"ok": True, "tasks": tasks})
+        if path == "/api/projects":
+            return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
+        if path == "/api/preflight":
+            return json_response(build_preflight(self._config()))
         if path.startswith("/api/task/"):
             task_id = unquote(path.removeprefix("/api/task/"))
             vault = ObsidianVault(self._config().system.vault_path)
@@ -81,6 +87,13 @@ class MiniWebApp:
         if path == "/api/run":
             result = orchestrator.run(_required_payload_text(payload, "task", "text"), project_path)
             return json_response(_flat_result(result))
+        if path == "/api/projects":
+            name = _required_payload_text(payload, "name")
+            path_value = _required_payload_text(payload, "path")
+            ProjectStore(self._config().system.vault_path).add_project(name, Path(path_value), make_default=bool(payload.get("default")))
+            return json_response({"ok": True, "projects": ProjectStore(self._config().system.vault_path).list_projects()})
+        if path == "/api/preflight":
+            return json_response(build_preflight(self._config(), project_path))
         return json_response({"ok": False, "error": "Маршрут не найден."}, 404)
 
 
@@ -189,4 +202,3 @@ def json_module_loads(raw: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-

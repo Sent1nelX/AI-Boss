@@ -14,10 +14,13 @@ from ai_boss.config.loader import AIBossConfig, load_config
 from ai_boss.core.errors import AIBossError
 from ai_boss.core.git_guard import GitGuard
 from ai_boss.core.orchestrator import Orchestrator
+from ai_boss.core.preflight import build_preflight
 from ai_boss.core.task_classifier import TaskClassifier
 from ai_boss.memory.obsidian_vault import ObsidianVault
+from ai_boss.memory.project_store import ProjectStore
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.task import TaskType
+from ai_boss.web.ui import INDEX_HTML as DASHBOARD_HTML
 
 
 DEFAULT_WEB_HOST = "127.0.0.1"
@@ -54,7 +57,7 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/":
-            self._send_html(INDEX_HTML)
+            self._send_html(DASHBOARD_HTML)
             return
         if parsed.path == "/api/status":
             self._send_json(api_status())
@@ -62,6 +65,12 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/tasks":
             limit = _int_query_param(parsed.query, "limit", 20)
             self._send_json(api_tasks(limit=limit))
+            return
+        if parsed.path == "/api/projects":
+            self._send_json(api_projects())
+            return
+        if parsed.path == "/api/preflight":
+            self._send_json(api_preflight({}))
             return
         if parsed.path.startswith("/api/task/"):
             task_id = unquote(parsed.path.removeprefix("/api/task/"))
@@ -87,6 +96,12 @@ class AIBossRequestHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/do":
                 self._send_json(api_do(payload))
+                return
+            if parsed.path == "/api/projects":
+                self._send_json(api_project_add(payload))
+                return
+            if parsed.path == "/api/preflight":
+                self._send_json(api_preflight(payload))
                 return
             self._send_json({"ok": False, "error": "Маршрут не найден."}, HTTPStatus.NOT_FOUND)
         except AIBossError as exc:
@@ -160,6 +175,24 @@ def api_tasks(limit: int = 20, config: AIBossConfig | None = None) -> dict[str, 
     return {"ok": True, "tasks": [_json_safe_task(task) for task in tasks]}
 
 
+def api_projects(config: AIBossConfig | None = None) -> dict[str, Any]:
+    config = config or load_config()
+    return {"ok": True, "projects": ProjectStore(config.system.vault_path).list_projects()}
+
+
+def api_project_add(payload: dict[str, Any]) -> dict[str, Any]:
+    config = load_config()
+    name = _required_field(payload, "name")
+    path = _required_field(payload, "path")
+    ProjectStore(config.system.vault_path).add_project(name, Path(path), make_default=bool(payload.get("default")))
+    return api_projects(config)
+
+
+def api_preflight(payload: dict[str, Any], config: AIBossConfig | None = None) -> dict[str, Any]:
+    config = config or load_config()
+    return build_preflight(config, _payload_project_path(payload))
+
+
 def api_task(task_id: str, config: AIBossConfig | None = None) -> dict[str, Any]:
     config = config or load_config()
     vault = ObsidianVault(config.system.vault_path)
@@ -229,6 +262,13 @@ def _required_text(payload: dict[str, Any]) -> str:
     if not text:
         raise AIBossError("Пустой запрос.")
     return text
+
+
+def _required_field(payload: dict[str, Any], field_name: str) -> str:
+    value = str(payload.get(field_name) or "").strip()
+    if not value:
+        raise AIBossError(f"Не заполнено обязательное поле: {field_name}.")
+    return value
 
 
 def _result_to_json(result: Any) -> dict[str, Any]:

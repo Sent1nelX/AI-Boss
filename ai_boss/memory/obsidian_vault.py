@@ -65,6 +65,7 @@ class ObsidianVault:
         self._write_if_missing(self.system_path("config.yaml"), default_config_path().read_text(encoding="utf-8"))
         self._write_yaml_if_missing(self.system_path("workers.yaml"), DEFAULT_WORKERS)
         self._write_yaml_if_missing(self.system_path("routing-rules.yaml"), DEFAULT_ROUTING)
+        self._write_yaml_if_missing(self.system_path("projects.yaml"), {"projects": []})
         return created
 
     def exists(self) -> bool:

@@ -150,6 +150,20 @@ def test_tasks_and_single_task_endpoints_return_vault_history(web_client: JsonCl
     assert "Показать web историю" in body["task"]["content"]
 
 
+def test_projects_and_preflight_endpoints_are_available(web_client: JsonClient, tmp_path: Path) -> None:
+    project = tmp_path / "project"
+
+    status_code, body = web_client.post("/api/projects", {"name": "demo", "path": str(project), "default": True})
+
+    assert status_code == 200
+    assert body["projects"][0]["name"] == "demo"
+
+    status_code, body = web_client.post("/api/preflight", {"project_path": str(project)})
+
+    assert status_code == 200
+    assert "checks" in body
+
+
 @pytest.mark.parametrize(
     ("path", "payload", "expected_call", "expected_worker"),
     [
