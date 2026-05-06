@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+from ai_boss.core.runtime import runtime_context
 from ai_boss.memory.obsidian_vault import ObsidianVault
 from ai_boss.memory.state_store import WorkerStateStore
 from ai_boss.models.worker import WorkerStatus
@@ -55,6 +56,40 @@ def test_worker_run_success_uses_mocked_subprocess_and_updates_state(
     assert result.detected_limit is False
     assert state.status == WorkerStatus.AVAILABLE
     assert state.total_runs_today == 1
+
+
+def test_non_codex_worker_uses_captured_run_with_runtime_logs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    vault = ObsidianVault(tmp_path / "vault")
+    vault.create()
+    logs: list[tuple[str, str]] = []
+
+    def fake_run(args, cwd=None, env=None, text=False, capture_output=False, timeout=None, check=True):
+        assert args == ["gemini", "-p", "hello"]
+        assert env == {"PATH": "/mock/bin"}
+        assert text is True
+        assert capture_output is True
+        assert timeout == 7
+        assert check is False
+        return SimpleNamespace(stdout="answer line\nsecond line\n", stderr="warning\n", returncode=0)
+
+    def fake_popen(*args, **kwargs):
+        raise AssertionError("Gemini should not use streaming Popen")
+
+    monkeypatch.setattr("ai_boss.workers.base.resolved_command", lambda command: command)
+    monkeypatch.setattr("ai_boss.workers.base.resolved_command_env", lambda command: {"PATH": "/mock/bin"})
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    worker = GeminiWorker(["gemini", "-p"], vault, timeout=7)
+    with runtime_context(log_sink=lambda source, message: logs.append((source, message))):
+        result = worker.run("hello")
+
+    assert result.success is True
+    assert ("gemini", "answer line") in logs
+    assert ("gemini", "second line") in logs
+    assert ("gemini:err", "warning") in logs
 
 
 def test_worker_run_records_limit_and_writes_error_without_real_cli(

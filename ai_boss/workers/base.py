@@ -1,4 +1,6 @@
+import os
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -39,7 +41,7 @@ class BaseWorker:
         try:
             command = resolved_command(self.command)
             env = resolved_command_env(self.command)
-            if runtime_hooks_enabled():
+            if runtime_hooks_enabled() and self.name == "codex":
                 stdout, stderr, exit_code = self._run_streaming([*command, prompt], cwd, env)
             else:
                 completed = subprocess.run(
@@ -54,6 +56,8 @@ class BaseWorker:
                 stdout = completed.stdout
                 stderr = completed.stderr
                 exit_code = completed.returncode
+                if runtime_hooks_enabled():
+                    self._emit_captured_output(stdout, stderr)
         except FileNotFoundError as exc:
             stderr = f"Команда не найдена: {self.command[0]}"
             exit_code = None
@@ -82,6 +86,9 @@ class BaseWorker:
         return result
 
     def _run_streaming(self, args: list[str], cwd: Path | None, env: dict[str, str]) -> tuple[str, str, int | None]:
+        popen_kwargs = {}
+        if os.name == "posix":
+            popen_kwargs["start_new_session"] = True
         process = subprocess.Popen(
             args,
             cwd=cwd,
@@ -90,6 +97,7 @@ class BaseWorker:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=1,
+            **popen_kwargs,
         )
         stdout_parts: list[str] = []
         stderr_parts: list[str] = []
@@ -111,16 +119,16 @@ class BaseWorker:
         while process.poll() is None:
             if cancel_requested():
                 emit_runtime_log("sys", f"Отмена: останавливаю {self.name}.")
-                process.terminate()
+                self._terminate_process(process)
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    process.kill()
+                    self._terminate_process(process, force=True)
                     process.wait(timeout=5)
                 stderr_parts.append("Выполнение отменено пользователем.\n")
                 break
             if time.monotonic() > deadline:
-                process.kill()
+                self._terminate_process(process, force=True)
                 process.wait(timeout=5)
                 raise subprocess.TimeoutExpired(cmd=args, timeout=self.timeout, output="".join(stdout_parts))
             time.sleep(0.1)
@@ -128,6 +136,26 @@ class BaseWorker:
         stdout_thread.join(timeout=1)
         stderr_thread.join(timeout=1)
         return "".join(stdout_parts), "".join(stderr_parts), process.returncode
+
+    def _emit_captured_output(self, stdout: str, stderr: str) -> None:
+        for line in stdout.splitlines():
+            emit_runtime_log(self.name, line)
+        for line in stderr.splitlines():
+            emit_runtime_log(f"{self.name}:err", line)
+
+    def _terminate_process(self, process: subprocess.Popen, force: bool = False) -> None:
+        if os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+                return
+            except ProcessLookupError:
+                return
+            except OSError:
+                pass
+        if force:
+            process.kill()
+        else:
+            process.terminate()
 
 
 def detect_limit(text: str) -> bool:
