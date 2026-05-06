@@ -20,7 +20,7 @@
 
 ## 0.1.0
 
-Первый публичный v2-срез AI-Boss Super Brain:
+Первый публичный срез AI-Boss Super Brain:
 
 - интерактивный CLI shell `ai-boss`;
 - local-only web UI `ai-boss web`;

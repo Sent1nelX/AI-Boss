@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ai-boss-super-brain"
 version = "0.2.0"
-description = "Локальный CLI-оркестратор для Gemini, Codex и Claude с памятью в Obsidian."
+description = "Local AI CLI orchestrator for Gemini, Codex and Claude with an Obsidian-style task Vault."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
